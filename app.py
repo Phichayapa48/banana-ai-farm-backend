@@ -11,7 +11,7 @@ import numpy as np
 # ----------------------------
 # ENV
 # ----------------------------
-MODEL_URL = os.environ.get("https://ypdmdfdwzldsifijajrm.supabase.co/storage/v1/object/sign/models/best_model.onnx?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9mM2JmYjY1Yi1kMjk2LTRjMmQtODI2OS0yZGFiNjhjNzM1MGIiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtb2RlbHMvYmVzdF9tb2RlbC5vbm54IiwiaWF0IjoxNzYzNjMzMjgyLCJleHAiOjE3OTUxNjkyODJ9.WM5TnVIhiFg5ejGNEgck-DGwWtrEECg3w84IJq4p7Ik")            # URL ของ Supabase
+MODEL_URL = os.environ.get("MODEL_URL")       # URL ของ Supabase
 MODEL_LOCAL_PATH = os.environ.get("MODEL_LOCAL_PATH", "best_model.onnx")
 PORT = int(os.environ.get("PORT", 8000))
 MAX_UPLOAD_MB = 5
