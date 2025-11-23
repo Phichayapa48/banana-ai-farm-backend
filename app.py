@@ -88,6 +88,11 @@ app.add_middleware(
 def root():
     return {"message": "Banana Model API running", "status": "ok"}
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 @app.post("/detect")
 async def detect(file: UploadFile = File(...)):
     if file.content_type.split("/")[0] != "image":
