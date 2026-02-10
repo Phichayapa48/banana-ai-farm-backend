@@ -1,3 +1,4 @@
+from typing import Optional
 import os
 import cv2
 import numpy as np
@@ -10,12 +11,15 @@ import pkg_resources
 
 app = FastAPI(title="Banana Expert AI Server")
 
+# =========================================================
+# DEBUG
+# =========================================================
 @app.get("/debug/deps")
 def debug_deps():
     return {
         "python-multipart": pkg_resources.get_distribution("python-multipart").version
     }
-    
+
 # =========================================================
 # CORS
 # =========================================================
@@ -31,7 +35,7 @@ app.add_middleware(
 )
 
 # =========================================================
-# ROOT + HEAD (🔥 สำคัญมากสำหรับ Render)
+# ROOT + HEALTH
 # =========================================================
 @app.get("/")
 def root():
@@ -87,17 +91,24 @@ def load_model():
         MODEL_REAL = None
 
 # =========================================================
-# DETECT + HEAD
+# DETECT (🔥 FIX 422 HERE)
 # =========================================================
 @app.post("/detect")
-async def detect(file: UploadFile = File(...)):
+async def detect(
+    file: Optional[UploadFile] = File(None),
+    image: Optional[UploadFile] = File(None),
+):
     load_model()
 
     if MODEL_REAL is None:
         return {"success": False, "reason": "model_not_loaded"}
 
+    upload = file or image
+    if upload is None:
+        return {"success": False, "reason": "no_file_provided"}
+
     try:
-        img_bytes = await file.read()
+        img_bytes = await upload.read()
         img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
 
         if img is None:
