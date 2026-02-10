@@ -18,8 +18,8 @@ app.add_middleware(
         "https://main-banana1.vercel.app",
         "http://localhost:5173",  # เผื่อ dev
     ],
-    allow_credentials=False,      # 🔥 สำคัญมาก
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_credentials=True,      # 🔥 สำคัญมาก
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
