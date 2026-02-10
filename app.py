@@ -133,4 +133,4 @@ if __name__ == "__main__":
     # ดึงพอร์ตจาก Environment สำหรับรันบน Render/Heroku
     port = int(os.environ.get("PORT", 8000))
     # ไม่ใช้ reload=True บน Production เพื่อประหยัดทรัพยากร
-    uvicorn.run(app, host="0.0.0.0", port=port)s
+    uvicorn.run(app, host="0.0.0.0", port=port)
