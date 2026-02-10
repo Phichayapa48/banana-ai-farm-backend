@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import gc
 
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, File
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
 import uvicorn
@@ -88,19 +88,15 @@ def load_model():
     print(f"✅ Model loaded: {MODEL_PATH}")
 
 # =========================================================
-# DETECT
+# DETECT (🔥 FIX 422 HERE 🔥)
 # =========================================================
 @app.post("/detect")
-async def detect(file: UploadFile = File(...)):
+async def detect(file: bytes = File(...)):
     try:
         load_model()
-    except Exception as e:
-        return {"success": False, "reason": str(e)}
 
-    try:
-        img_bytes = await file.read()
         img = cv2.imdecode(
-            np.frombuffer(img_bytes, np.uint8),
+            np.frombuffer(file, np.uint8),
             cv2.IMREAD_COLOR
         )
 
