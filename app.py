@@ -1,7 +1,6 @@
 import os
 import cv2
 import numpy as np
-import asyncio
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
@@ -9,7 +8,9 @@ import uvicorn
 
 app = FastAPI(title="Banana Expert AI Server")
 
-# ✅ 1. CORS Setup - เชื่อมกับ Frontend (React) ได้ทุกที่
+# =========================================================
+# 1. CORS
+# =========================================================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,119 +19,124 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -------------------------
-# ✅ 2. LOAD MODELS (Memory Optimized)
-# -------------------------
+# =========================================================
+# 2. LOAD MODEL (Global – โหลดครั้งเดียว)
+# =========================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(BASE_DIR, "model")
 
-# โหลดครั้งเดียวที่ Global Scope เพื่อประหยัด CPU
 print("🚀 Loading Banana Expert Models...")
 try:
-    # พยายามโหลดตัว S (Small) ก่อน
     MODEL_PATH = os.path.join(MODEL_DIR, "best_modelv8sbg.pt")
     if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError(f"Missing: {MODEL_PATH}")
+        raise FileNotFoundError("YOLOv8s not found")
     MODEL_REAL = YOLO(MODEL_PATH)
-    print(f"✅ Loaded: YOLOv8s")
+    print("✅ YOLOv8s loaded")
 except Exception as e:
-    print(f"⚠️ Switching to Nano (Fallback): {e}")
-    # ถ้าไม่มีตัว S หรือ RAM ไม่พอ ให้ไปใช้ตัว N (Nano) ซึ่งรันบน Render ได้ชัวร์กว่า
+    print(f"⚠️ Fallback to Nano: {e}")
     MODEL_REAL = YOLO(os.path.join(MODEL_DIR, "best_modelv8nbg.pt"))
 
-# -------------------------
-# ✅ 3. CONFIGURATION & MAPPING
-# -------------------------
-# ตรวจสอบชื่อ Key ให้ตรงกับ Slug ใน Database (Supabase)
+# =========================================================
+# 3. CLASS MAPPING (ตรงกับ Supabase slug)
+# =========================================================
 CLASS_KEYS = {
-    0: "candyapple", 1: "namwa", 2: "namwadam", 3: "homthong",
-    4: "nak", 5: "thepphanom", 6: "kai", 7: "lepchangkut",
-    8: "ngachang", 9: "huamao",
+    0: "candyapple",
+    1: "namwa",
+    2: "namwadam",
+    3: "homthong",
+    4: "nak",
+    5: "thepphanom",
+    6: "kai",
+    7: "lepchangkut",
+    8: "ngachang",
+    9: "huamao",
 }
 
-# -------------------------
-# ✅ 4. API ROUTES
-# -------------------------
+# =========================================================
+# 4. ROUTES
+# =========================================================
 
 @app.get("/")
 async def root():
     return {"status": "online", "message": "Banana Expert AI is ready!"}
 
+
+# ✅ สำคัญมาก: กัน 405 จาก Render / Browser
+@app.get("/detect")
+@app.get("/detect/")
+@app.head("/detect")
+@app.head("/detect/")
+async def detect_guard():
+    return {
+        "status": "ok",
+        "message": "Use POST /detect with multipart/form-data"
+    }
+
+
 @app.post("/detect")
-@app.post("/detect/") 
+@app.post("/detect/")
 async def detect(file: UploadFile = File(...)):
     try:
-        # 1. อ่านไฟล์ภาพ
+        # 1. อ่านภาพ
         img_bytes = await file.read()
         nparr = np.frombuffer(img_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
+
         if img is None:
-            return {"success": False, "reason": "invalid_image_format"}
+            return {"success": False, "reason": "invalid_image"}
 
-        # 2. ปรับขนาดภาพก่อนส่งเข้า AI (ช่วยลดการใช้ RAM และประมวลผลไวขึ้น)
-        # YOLOv8 มักจะใช้ 640x640 เป็นมาตรฐาน
-        img_resized = cv2.resize(img, (640, 640))
+        # 2. Resize (ลดภาระ CPU / RAM)
+        img = cv2.resize(img, (640, 640))
 
-        # 3. เริ่มการทำนาย (Inference)
-        # ใช้เครื่องมือจัดการ Thread ของ AI เพื่อไม่ให้ Server ค้าง
+        # 3. Inference
         results = MODEL_REAL.predict(
-            source=img_resized, 
-            conf=0.15,  # ค่าความมั่นใจขั้นต่ำ
-            iou=0.45,   # ป้องกันกล่องซ้อนกัน
-            imgsz=640, 
-            augment=False, 
-            verbose=False # ปิด log เพื่อให้เร็วขึ้น
+            source=img,
+            conf=0.15,
+            iou=0.45,
+            imgsz=640,
+            verbose=False
         )[0]
 
-        # 4. ตรวจสอบว่าเจอกล้วยไหม
-        if not hasattr(results, 'boxes') or len(results.boxes) == 0:
+        if not results.boxes or len(results.boxes) == 0:
             return {
-                "success": False, 
-                "reason": "no_banana_detected",
-                "message": "AI หาไม่เจอกรุณาถ่ายให้ชัดเจนขึ้น"
+                "success": False,
+                "reason": "no_banana_detected"
             }
 
-        # 5. ดึงผลลัพธ์ตัวที่มั่นใจสูงสุด (Best Confidence)
+        # 4. เลือกผลที่มั่นใจสุด
         confs = results.boxes.conf.cpu().numpy()
         clses = results.boxes.cls.cpu().numpy().astype(int)
-        
-        best_idx = int(np.argmax(confs))
-        final_conf = float(confs[best_idx])
-        class_id = int(clses[best_idx])
-        
-        # ดึง Slug จาก Mapping
-        banana_slug = CLASS_KEYS.get(class_id, "unknown")
 
-        # 6. ส่งข้อมูลกลับไปหา React Frontend
+        best_idx = int(np.argmax(confs))
+        banana_slug = CLASS_KEYS.get(int(clses[best_idx]), "unknown")
+
         return {
             "success": True,
-            "banana_key": banana_slug,      # ใช้สำหรับจับคู่ slug ใน DB
-            "class_name": banana_slug,     # เผื่อ Frontend เรียกตัวแปรนี้
-            "confidence": round(final_conf, 3),
+            "banana_key": banana_slug,
+            "class_name": banana_slug,
+            "confidence": round(float(confs[best_idx]), 3),
             "debug": {
                 "count": len(results.boxes),
                 "model": "YOLOv8-optimized",
-                "original_filename": file.filename
+                "filename": file.filename
             }
         }
 
     except Exception as e:
-        print(f"❌ Server Error: {e}")
+        print("❌ Server error:", e)
         return {
-            "success": False, 
-            "reason": "server_error", 
+            "success": False,
+            "reason": "server_error",
             "detail": str(e)
         }
+
     finally:
-        # ล้าง Buffer ไฟล์ที่อ่านมาเพื่อคืน Memory
         await file.close()
 
-# -------------------------
-# ✅ 5. RUN SERVER (Production optimized)
-# -------------------------
+
+# =========================================================
+# 5. RUN SERVER
+# =========================================================
 if __name__ == "__main__":
-    # ดึงพอร์ตจาก Environment สำหรับรันบน Render/Heroku
     port = int(os.environ.get("PORT", 8000))
-    # ไม่ใช้ reload=True บน Production เพื่อประหยัดทรัพยากร
     uvicorn.run(app, host="0.0.0.0", port=port)
