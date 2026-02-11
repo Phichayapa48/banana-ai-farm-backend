@@ -26,7 +26,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 print("🚀 Loading 3 Models...")
 try:
     # 1. โมเดลกรอง (Stage 1)
-    MODEL_FILTER = YOLO(os.path.join(BASE_DIR, "model/best_m1_bgv8n.pt")).to("cpu")
+    MODEL_FILTER = YOLO(os.path.join(BASE_DIR, "model/best_m1_bgv8s.pt")).to("cpu")
     
     # 2. โมเดลหลัก (Stage 2: Main)
     MODEL_MAIN   = YOLO(os.path.join(BASE_DIR, "model/best_modelv8sbg.pt")).to("cpu")
